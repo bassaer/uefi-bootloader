@@ -6,6 +6,9 @@
 *.ko
 *.obj
 *.elf
+BOOTX64.EFI
+kernel.bin
+os.img
 
 # Linker output
 *.ilk
