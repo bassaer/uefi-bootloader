@@ -20,7 +20,7 @@ img: boot/BOOTX64.EFI kernel/kernel.bin
 	mcopy -i $(IMG) kernel/kernel.bin ::/
 
 run: img
-	qemu-system-x86_64 -name myos \
+	qemu-system-x86_64 -name uefi-bootloader \
                      -localtime \
                      -monitor stdio \
                      -bios /usr/share/ovmf/OVMF.fd \
