@@ -21,11 +21,12 @@ img: boot/BOOTX64.EFI kernel/kernel.bin
 
 run: img
 	qemu-system-x86_64 -name uefi-bootloader \
-                     -localtime \
                      -monitor stdio \
                      -bios /usr/share/ovmf/OVMF.fd \
-                     -net none \
-                     -usbdevice disk::$(IMG) \
+                     -drive format=raw,file=$(IMG) \
+                     -device nec-usb-xhci,id=xhci \
+                     -device usb-mouse \
+                     -device usb-kbd \
                      -d guest_errors \
                      || true
 
