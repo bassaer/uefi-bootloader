@@ -2,11 +2,8 @@
 #include <elf64.h>
 #include <uefi.h>
 
-#define BUF_SIZE 4*1024
-#define PAGE_SIZE 4*1024
-
-#define KERN_ADDR  0x0000000000002000
-#define STACK_BASE 0x0000000000100000
+#define PAGE_SIZE 4096
+#define KERN_ADDR  0x100000
 #define KERN_PATH L"\\kernel.bin"
 
 #define UINT64_MAX  0xffffffffffffffff
@@ -20,8 +17,6 @@ EFI_GRAPHICS_OUTPUT_PROTOCOL *gop;
 
 BootInfo *boot_info;
 
-typedef VOID (EntryPoint)(BootInfo *boot);
-
 void halt() {
   while (1) __asm__ volatile("hlt");
 }
@@ -31,12 +26,12 @@ void printf(CHAR16 *str) {
   gST->ConOut->OutputString(gST->ConOut, str);
 }
 
-EFI_STATUS load_kernel(VOID *ElfImage, EntryPoint **entryPoint) {
+EFI_STATUS load_kernel(VOID *ElfImage, VOID **entryPoint) {
   Elf64_Ehdr *ElfHdr = (Elf64_Ehdr *)ElfImage;
   UINT8  magic[4] = {0x7f, 0x45, 0x4c, 0x46};
 
   UINTN  i;
-  for(i=0; i<4; i++){
+  for(i = 0; i < 4; i++){
     if(ElfHdr->e_ident[i] != magic[i]){
       printf(L"invalid paramater\r\n");
       return EFI_INVALID_PARAMETER;
@@ -53,8 +48,8 @@ EFI_STATUS load_kernel(VOID *ElfImage, EntryPoint **entryPoint) {
       VOID  *ExtraZeroes;
       UINTN  ExtraZeroesCount;
 
-      FileSegment = (VOID *)((UINTN)ElfImage + ProgramHdrPtr->p_offset);
       MemSegment = (VOID *)ProgramHdrPtr->p_vaddr;
+      FileSegment = (VOID *)((UINTN)ElfImage + ProgramHdrPtr->p_offset);
       gBS->CopyMem(MemSegment, FileSegment, ProgramHdrPtr->p_filesz);
 
       ExtraZeroes = (UINT8 *)MemSegment + ProgramHdrPtr->p_filesz;
@@ -126,6 +121,7 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
   EFI_FILE_PROTOCOL *handle = NULL;
   status = kernel->Open(kernel, &handle, KERN_PATH, EFI_FILE_MODE_READ, 0);
   if (status != EFI_SUCCESS) {
+    printf(L"[ERROR] failed to open kernel\r\n");
     halt();
   };
 
@@ -146,8 +142,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
     halt();
   }
 
-  UINT8 *buffer = (VOID *)KERN_ADDR;
-  status = gST->BootServices->AllocatePool(EfiLoaderData, kernel_size, (VOID **)&buffer);
+  EFI_PHYSICAL_ADDRESS buffer = (EFI_PHYSICAL_ADDRESS)KERN_ADDR;
+  status = gBS->AllocatePages(AllocateAddress, EfiLoaderData, ((kernel_size + PAGE_SIZE) / PAGE_SIZE), &buffer);
   if (status != EFI_SUCCESS) {
     printf(L"[ERROR] failed to allocate\r\n");
     halt();
@@ -169,8 +165,8 @@ EFI_STATUS efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
     halt();
   }
 
-  EntryPoint *kernel_main;
-  status = load_kernel(buffer, &kernel_main);
+  VOID *kernel_main;
+  status = load_kernel((VOID *)buffer, &kernel_main);
   if (status != EFI_SUCCESS) {
     printf(L"[ERROR] failed to load kernel_main\r\n");
     halt();
